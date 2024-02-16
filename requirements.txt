@@ -1,0 +1,12 @@
+pandas
+numpy
+seaborn
+matplotlib
+plotly
+scikit-learn
+keras
+minisom
+statsmodels
+ta
+yfinance
+urllib3<2.0
