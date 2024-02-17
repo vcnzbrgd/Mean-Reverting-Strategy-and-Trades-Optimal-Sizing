@@ -60,3 +60,42 @@ def meanrev_signal(s,
     signal = signal_long + signal_short
 
     return signal
+
+
+
+
+def tp_sl_rule(s,
+                dt_open,
+                direction,
+                supportive_pctl_move = 0.3,
+                counter_pctl_move = 0.2,
+                   ):
+    """
+    Calculate the take profit (TP) and stop loss (SL) levels based on historical 
+    monthly returns of a financial instrument up to a specified opening date.
+
+    Parameters:
+    - s (pandas.Series): Price data of the financial instrument.
+    - dt_open (datetime-like): The opening date for the calculation. Only data up to this date will be considered.
+    - direction (int): Trading direction, where 1 indicates a long position and -1 indicates a short position.
+    - supportive_pctl_move (float, optional): The percentile of positive returns to determine the TP level in a supportive market move. Defaults to 0.3.
+    - counter_pctl_move (float, optional): The percentile of negative returns to determine the SL level in a counter market move. Defaults to 0.2.
+
+    Returns:
+    - tuple: A tuple containing the TP and SL levels as floats. TP and SL are based on 
+      the quantiles of positive and negative monthly returns, respectively, adjusted for 
+      the trading direction.
+    """
+    monthly_rets = s.loc[:dt_open].pct_change(21).dropna()
+
+    pos_monthly_rets = monthly_rets[monthly_rets>0]
+    neg_monthly_rets = monthly_rets[monthly_rets<0]
+
+    if direction == 1:
+        tp_return = pos_monthly_rets.quantile(supportive_pctl_move)
+        sl_return = neg_monthly_rets.quantile(1 - counter_pctl_move)
+    elif direction == -1:
+        tp_return = - neg_monthly_rets.quantile(1 - supportive_pctl_move)
+        sl_return = - pos_monthly_rets.quantile(counter_pctl_move)
+    
+    return tp_return, sl_return
