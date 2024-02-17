@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def meanrev_signal(s,
@@ -63,7 +64,6 @@ def meanrev_signal(s,
 
 
 
-
 def tp_sl_rule(s,
                 dt_open,
                 direction,
@@ -117,3 +117,117 @@ def trade_return(df):
     trades_returns = (df['price_close'] / df['price_open'])**df['direction'] - 1
     
     return trades_returns
+
+
+
+def hit_ratio(df):
+    """
+    Computes Hit ratio defined as winning trades / total number of trades
+    Parameters:
+    - df (pandas.DataFrame): a df with a column named return
+    Returns:
+    - hit_ratio (int): the Hit ratio
+    """
+
+    hit_ratio = len(df[df['return']>0]) / len(df)
+
+    return hit_ratio
+
+
+
+def win_loss(df):
+    """
+    Computes Win-Loss ratio defined as average return of winning trades / average absolute value of return of losing trades
+    Parameters:
+    - df (pandas.DataFrame): a df with a column named return
+    Returns:
+    - win_loss (int): the Win-Loss ratio
+    """
+        
+    win_loss = df[df['return']>0]['return'].mean() / np.abs(df[df['return']<=0]['return'].mean())
+    
+    return win_loss
+
+
+
+# PLOT Functions
+
+def violin_plot_grouped(data, group_column, value_column, figsize=(20, 8)):
+    """
+    Creates a violin plot for a specified numerical column, grouped by a specified categorical column,
+    using Matplotlib directly. This version allows specifying the figure size.
+
+    Parameters:
+    - data (pandas.DataFrame): The DataFrame containing the data.
+    - group_column (str): The name of the column to group the data by.
+    - value_column (str): The name of the numerical column for which the violin plot will be created.
+    - figsize (tuple of int, optional): The size of the figure (width, height) in inches. Defaults to (10, 6).
+    """
+
+    # Set the figure size
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Prepare the data for the violin plot
+    unique_groups = data[group_column].unique()
+    grouped_data = [data[value_column][data[group_column] == group] for group in unique_groups]
+
+    # Create the violin plot
+    ax.violinplot(grouped_data, showmeans=False, showmedians=True)
+    
+    # Set the x-ticks to correspond to the groups and rotate them for better readability
+    ax.set_xticks(range(1, len(unique_groups) + 1))
+    ax.set_xticklabels(unique_groups, rotation=45, ha="right")
+
+    # Enhance the plot
+    ax.set_title(f'Violin Plot of {value_column} Grouped by {group_column}')
+    ax.set_xlabel(group_column)
+    ax.set_ylabel(value_column)
+    ax.grid(True)
+
+    # Display the plot
+    plt.tight_layout()  # Adjust layout to make room for the rotated labels
+    plt.show()
+
+
+
+def plot_histogram(series, title='Title', figsize=(10, 6), bins=30):
+    """
+    Generates a histogram for a given pandas Series, marking the 25th and 75th percentiles with vertical lines
+    and displaying their values in a text box.
+
+    Parameters:
+    - series (pandas.Series): The data to plot.
+    - title (str, optional): The title of the histogram. Defaults to 'Histogram'.
+    - figsize (tuple of int, optional): The figure size in inches, given as (width, height). Defaults to (10, 6).
+    - bins (int, optional): The number of bins for the histogram. Defaults to 30.
+    """
+    # Calculate percentiles
+    p25 = np.percentile(series, 25)
+    p75 = np.percentile(series, 75)
+
+    # Create the histogram
+    plt.figure(figsize=figsize)
+    plt.hist(series, bins=bins, color='skyblue', edgecolor='black')
+
+    # Add vertical lines for the 25th and 75th percentiles
+    plt.axvline(p25, color='red', linestyle='dashed', linewidth=1)
+    plt.axvline(p75, color='green', linestyle='dashed', linewidth=1)
+
+    # Prepare text for the box showing percentile values
+    textstr = f'25th percentile: {p25:.2f}\n75th percentile: {p75:.2f}'
+
+    # These are matplotlib.patch.Patch properties
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+    # Place a text box in upper left in axes coords
+    plt.gca().text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=10,
+                   verticalalignment='top', bbox=props)
+
+    # Set title and labels
+    plt.title(title)
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.grid(True)
+
+    # Show plot
+    plt.show()
