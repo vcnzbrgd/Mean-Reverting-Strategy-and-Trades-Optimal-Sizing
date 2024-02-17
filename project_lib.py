@@ -99,3 +99,21 @@ def tp_sl_rule(s,
         sl_return = - pos_monthly_rets.quantile(counter_pctl_move)
     
     return tp_return, sl_return
+
+
+
+def trade_return(df):
+    """
+    Compute the returns of a list of trades
+
+    Parameters:
+    - df (pandas.DataFrame): a df containing three columns: price_close with the closing price of the trade, price_open with the opening price of the trade and 
+    direction equal to 1 if trade is long, -1 if short
+
+    Returns:
+    - trades_returns (pandas.Series): a series with trade's return
+    """
+    
+    trades_returns = (df['price_close'] / df['price_open'])**df['direction'] - 1
+    
+    return trades_returns
