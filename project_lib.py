@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# as convention 1 week is 5 trading days and 1 month is 21 trading days so that each year has 252 trading days
+
 def meanrev_signal(s,
                    long_params={10:0.05, 21:0.15, 63:0.25},
                    short_params={10:0.95, 21:0.85, 63:0.75},
@@ -49,10 +51,10 @@ def meanrev_signal(s,
     ma_slow = s.rolling(ma_slow_wdw).mean()
     
     # long signal 2
-    signal_long2 = ((s < ma_fast) & (s < ma_slow)) * 1 # vado long se prezzo minore di entrambe medie mobili???
-
+    signal_long2 = ((s < ma_fast) & (s < ma_slow)) * 1
+    
     # short signal 2
-    signal_short2 = ((s > ma_fast) & (s > ma_slow)) * 1 # vado short se prezzo maggiore di entrambe medie mobili???
+    signal_short2 = ((s > ma_fast) & (s > ma_slow)) * 1
 
     # make intersection of the two signals
     signal_long = (signal_long1 * signal_long2)
