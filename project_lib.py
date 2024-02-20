@@ -116,7 +116,7 @@ def trade_return(df):
     - trades_returns (pandas.Series): a series with trade's return
     """
     
-    trades_returns = (df['price_close'] / df['price_open'])**df['direction'] - 1
+    trades_returns = (df['price_close'] / df['price_open'] - 1) * df['direction']
     
     return trades_returns
 
@@ -205,6 +205,7 @@ def plot_histogram(series, title='Title', figsize=(10, 6), bins=30):
     """
     # Calculate percentiles
     p25 = np.percentile(series, 25)
+    p50 = np.percentile(series, 50)
     p75 = np.percentile(series, 75)
 
     # Create the histogram
@@ -216,7 +217,7 @@ def plot_histogram(series, title='Title', figsize=(10, 6), bins=30):
     plt.axvline(p75, color='green', linestyle='dashed', linewidth=1)
 
     # Prepare text for the box showing percentile values
-    textstr = f'25th percentile: {p25:.2f}\n75th percentile: {p75:.2f}'
+    textstr = f'25th percentile: {p25:.4f}\nmedian: {p50:.4f}\n75th percentile: {p75:.4f}'
 
     # These are matplotlib.patch.Patch properties
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
