@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import tqdm
 
 
 # as convention 1 week is 5 trading days and 1 month is 21 trading days so that each year has 252 trading days
@@ -149,6 +150,163 @@ def win_loss(df):
     win_loss = df[df['return']>0]['return'].mean() / np.abs(df[df['return']<=0]['return'].mean())
     
     return win_loss
+
+
+
+def run_bt_pipeline(df,
+            TRADED_SECURITIES,
+            LONG_PARAMS,
+            SHORT_PARAMS,
+            MA_FAST_WDW,
+            MA_SLOW_WDW,
+            SUPPORTIVE_PCTL_MOVE,
+            COUNTER_PCTL_MOVE,
+            TRADES_MAX_DAYS,
+            MAX_DOLLAR_LOSS,
+            SIGMA_WDW,
+            GAMMA,
+            ):
+    """
+    Run BT pipeline
+    """
+
+
+    # list to store all trades
+    trades_list = []
+    trades_pnl = {}
+
+    for security_id in tqdm.tqdm(TRADED_SECURITIES):
+        # generate signal based on standard strategy
+        signal_all = meanrev_signal(df[security_id],
+                                    long_params = LONG_PARAMS,
+                                    short_params = SHORT_PARAMS,
+                                    ma_fast_wdw = MA_FAST_WDW,
+                                    ma_slow_wdw = MA_SLOW_WDW
+                    )
+        
+        # compute Historical Volatility
+        hist_vol = df[security_id].pct_change().rolling(SIGMA_WDW).std() * np.sqrt(252)
+
+        # "start your backtest at t-10". hard coding initial date for BT (and final date to avoid missing data)
+        signal_all = signal_all.loc['2014-02-12':'2024-01-20']
+
+        # extract from all signal only the actual open buy/sell triggers
+        signal_do = signal_all[signal_all!= 0]
+
+        # iterates over all buy/sell signal and execute orders
+        for dt_open, direction in zip(signal_do.index, signal_do):
+            
+            # create a unique id for each trade
+            trade_id = security_id+'#'+str(dt_open)[:10]
+
+            # price at which the trade is open
+            price_open = df.loc[dt_open, security_id]
+
+            # compute TP/SL returns and prices
+            tp_return, sl_return = tp_sl_rule(df[security_id],
+                                                dt_open,
+                                                direction,
+                                                supportive_pctl_move = SUPPORTIVE_PCTL_MOVE,
+                                                counter_pctl_move = COUNTER_PCTL_MOVE
+                                            )
+            price_tp = price_open * (1 + tp_return*direction)
+            price_sl = price_open * (1 + sl_return*direction)
+
+            if GAMMA == None:
+                # compute the optimal sizing such that all trades loses the same amount of $ if SL is hitted
+                quantity = MAX_DOLLAR_LOSS/((price_open - price_sl)*direction)
+            else:
+                quantity = MAX_DOLLAR_LOSS/((price_open - price_sl)*direction) * (GAMMA/hist_vol.loc[dt_open])
+
+            # store all trade info in df
+            trade = pd.DataFrame({'security_id':security_id,
+                                    'dt_open':str(dt_open)[:10],
+                                    'price_open':price_open,
+                                    'direction':direction,
+                                    'quantity':quantity,
+                                    'price_tp':price_tp,
+                                    'price_sl':price_sl}, index=[trade_id])
+
+            # create a temporary df that contains prices of instrument during trade
+            dt_open_idxdf = list(df.index).index(dt_open)
+            temp_px = df[[security_id]].iloc[dt_open_idxdf + 1: dt_open_idxdf + TRADES_MAX_DAYS + 1]
+            temp_px['price_open'] = price_open
+            temp_px['direction'] = direction
+            temp_px['quantity'] = quantity
+            temp_px['price_tp'] = price_tp
+            temp_px['price_sl'] = price_sl
+
+            # Check if and when a TP/SL is triggered and cut the temporary df accordingly
+            if direction==1:
+                temp_px['tp_hitted'] = (temp_px[security_id] > temp_px['price_tp']) * 1
+                temp_px['sl_hitted'] = (temp_px[security_id] < temp_px['price_sl']) * 1
+            elif direction==-1:
+                temp_px['tp_hitted'] = (temp_px[security_id] < temp_px['price_tp']) * 1
+                temp_px['sl_hitted'] = (temp_px[security_id] > temp_px['price_sl']) * 1
+
+            temp_px['tp_sl_hitted'] = temp_px['tp_hitted'] + temp_px['sl_hitted']
+
+            if 1 in list(temp_px['tp_sl_hitted']):
+                dt_close = str(temp_px[temp_px['tp_sl_hitted']==1].index[:1][0])[:10]
+                exit_type = 'TP/SL exit'
+            else:
+                dt_close = str(list(temp_px.index)[-1:][0])[:10]
+                exit_type = 'max duration'
+
+            # cut temp_px at closing date
+            temp_px = temp_px.loc[:dt_close]
+            # compute PnL of the trade during the days it was open and append to Portfolio PnL list
+            temp_px['pnl'] = temp_px[security_id] * temp_px['quantity']
+            temp_px['daily_return'] = temp_px[security_id].pct_change().fillna(
+                temp_px[security_id].iloc[0]/temp_px['price_open'].iloc[0]-1)
+
+            # store closing price of the trade
+            price_close = temp_px.loc[dt_close, security_id]
+
+            # add closing trade date and price to trade df
+            trade['dt_close'] = dt_close
+            trade['price_close'] = price_close
+            trade['duration'] = len(temp_px)
+            trade['exit_condition'] = exit_type
+
+            # compute the annualized volatility of the trade
+            trade['ann_volatility'] = temp_px['daily_return'].std() * np.sqrt(252)
+
+            # collect trade and pnl
+            trades_list.append(trade)
+            trades_pnl[trade_id] = temp_px
+
+    # check if trades_list is non-empty
+    if len(trades_list)==0:
+        raise Exception('No trades have been executed')
+
+    trades_list = pd.concat(trades_list)
+    # compute trades' returns, sharpe 1Y and dollar value of position at each open
+    trades_list['return'] = trade_return(trades_list)
+    trades_list['daily_return'] = trades_list['return'] / trades_list['duration']
+    trades_list['sharpe_ratio'] = trades_list['daily_return']*252 / trades_list['ann_volatility']
+
+    # trim Sharpe ratio to reduce the impact of outliers on average measure
+    trim_sharpe_up = trades_list['sharpe_ratio'].quantile(0.95)
+    trim_sharpe_dwn = trades_list['sharpe_ratio'].quantile(0.05)
+    trades_list['sharpe_ratio'] = trades_list['sharpe_ratio'].mask(trades_list['sharpe_ratio'] > trim_sharpe_up, trim_sharpe_up)
+    trades_list['sharpe_ratio'] = trades_list['sharpe_ratio'].mask(trades_list['sharpe_ratio'] < trim_sharpe_dwn, trim_sharpe_dwn)
+
+    # compute the dollar value postion at open and the pseudo-weight of the trade in the portfolio 
+    trades_list['position_dollar_value_open'] = trades_list['quantity']*(
+        trades_list['price_open']+trades_list['price_close'])/2
+    trades_list['weight'] = (trades_list['position_dollar_value_open']*trades_list['duration']/
+        (trades_list['position_dollar_value_open']*trades_list['duration']).sum())
+
+
+    # split between TP and SL exit explicitly
+    trades_list['exit_condition'] = trades_list['exit_condition'].mask(
+        (trades_list['exit_condition']=='TP/SL exit')&(trades_list['return']>0), 'TP exit')
+    trades_list['exit_condition'] = trades_list['exit_condition'].mask(
+        (trades_list['exit_condition']=='TP/SL exit')&(trades_list['return']<0), 'SL exit')
+    
+
+    return trades_list, trades_pnl
 
 
 
