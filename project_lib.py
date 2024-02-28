@@ -413,7 +413,21 @@ def optimal_number_trades(df,
                             ptf_vol_tgt,
                             aum_lost_sl):
     """
-    function does....
+    Computes the optimal number of trades, given some parameters and simulating random trades based on those parameters
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - ptf_vol_tgt (float): target volatility of the portfolio
+    - aum_lost_sl (float): share of AuM lost from each trade when stopped
+
+    Returns:
+    - portfolio_volatility (float): volatility of the portfolio from random trades
+    - number_of_trades (float): number of trades)
     """
 
     # set a generic value of AUM for the portfolio
@@ -421,6 +435,9 @@ def optimal_number_trades(df,
 
     if (incipit_date <= '2014-02-12') | (incipit_date >= '2023-02-12'):
         raise ValueError('incipit_date must be between 2014-02-12 and 2023-02-12')
+    
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     # refill Sat&Sun
     refilled = df.reindex(pd.date_range(df.index.min(), df.index.max()), method='ffill')
@@ -512,11 +529,26 @@ def mc_opt_n_trades(df,
                     aum_lost_sl,
                     iterations=100):
     """
-    
+    Applies the function optimal_number_trades a number of times (Monte Carlo) specified by parameter iterations,
+    and prints the optimal number of trades to achieve the target portfolio volatility.
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - ptf_vol_tgt (float): target volatility of the portfolio
+    - aum_lost_sl (float): share of AuM lost from each trade when stopped
+    - iterations (int): number of iterations for the simulation
     """
+    
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     prob_res = {}
-    for i in tqdm.tqdm(range(iterations)):
+    for _ in tqdm.tqdm(range(iterations)):
         portfolio_volatility, number_of_trades = optimal_number_trades(df,
                                 incipit_date,
                                 sigma_sl,
@@ -540,8 +572,23 @@ def forecast_portfolio_volatility(df,
                                     number_of_trades,
                                     aum_lost_sl):
     """
-    function does....
+    Forecasts the portfolio volatility, given some parameters and simulating random trades based on those parameters
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - aum_lost_sl (float): share of AuM lost from each trade when stopped
+
+    Returns:
+    - portfolio_volatility (float): volatility of the portfolio from random trades
     """
+
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
     
     # set a generic value of AUM for the portfolio
     aum = 1000000
@@ -634,9 +681,23 @@ def mc_fcast_ptf_volatility(df,
                                 aum_lost_sl,
                                 iterations=100):
     """
-    
+    Applies the function forecast_portfolio_volatility a number of times (Monte Carlo) specified by parameter iterations,
+    and prints the forecasted portfolio volatility resulting from the trades.
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - number_of_trades (float): number of simulated trades for the portfolio
+    - aum_lost_sl (float): share of AuM lost from each trade when stopped
+    - iterations (int): number of iterations for the simulation
     """
     
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     simul_ptf_vol = []
     for _ in tqdm.tqdm(range(iterations)):
@@ -662,9 +723,25 @@ def percentage_aum_lost(df,
                             ptf_vol_tgt,
                             number_of_trades):
     """
-    function does....
+    Computes the % AuM lost from each trade, given some parameters and simulating random trades based on those parameters
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - ptf_vol_tgt (float): target volatility of the portfolio
+    - number_of_trades (float): number of simulated trades for the portfolio
+
+    Returns:
+    - aum_lost_sl (float): share of AuM lost from each trade
     """
 
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
+    
     # set a generic value of AUM for the portfolio
     aum = 1000000
 
@@ -765,9 +842,23 @@ def mc_perc_aum_lost(df,
                         number_of_trades,
                         iterations=100):
     """
-    fun does....
+    Applies the function percentage_aum_lost a number of times (Monte Carlo) specified by parameter iterations, and prints the 
+    avg and stdev share of AuM lost from each trade.
+
+    Parameters:
+    - df (pandas.DataFrame): dataset with prices, each column is an instrument
+    - incipit_date (str): string with date in format yyyy-mm-dd, it is the date at which we start the simulation. Ideally it is
+    the date when the algorithm is run and random trades are generated from incipit_date to incipit_date + 1Y
+    - sigma_sl (float): sigma at which SL is triggered. Must be a negative number
+    - sigma_tp (float): sigma at which TP is triggered. Must be a positive number
+    - max_trade_duration (float): max lenght of a trade expressed in trading days
+    - ptf_vol_tgt (float): target volatility of the portfolio
+    - number_of_trades (float): number of simulated trades for the portfolio
+    - iterations (int): number of iterations for the simulation
     """
-    
+
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     simul_perc_aum_lost = []
     for _ in tqdm.tqdm(range(iterations)):
