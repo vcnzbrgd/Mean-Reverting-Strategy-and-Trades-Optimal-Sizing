@@ -1066,6 +1066,8 @@ def optimal_sizing(df,
     - max_trade_duration (float): max lenght of a trade expressed in trading days
     - iterations (int): number of iterations for the simulation
     """
+    if [number_of_trades, ptf_vol_tgt, aum_lost_sl, sigma_sl].count(None) != 1:
+        raise Exception('Only one among: [number_of_trades, ptf_vol_tgt, aum_lost_sl, sigma_sl] must be None')
 
     if number_of_trades == None:
         mc_opt_n_trades(df,
