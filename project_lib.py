@@ -528,7 +528,7 @@ def mc_opt_n_trades(df,
         prob_res[portfolio_volatility] = number_of_trades
 
     prob_res = pd.DataFrame(prob_res, index=['number_of_trades']).T.reset_index().rename({'index':'ptf_volat'}, axis=1)
-    print(f"optimal number of trades: {round(prob_res['number_of_trades'].mean())} \u00B1 {round(prob_res['number_of_trades'].std())}")
+    print(f"Optimal Number of Trades: {round(prob_res['number_of_trades'].mean())} \u00B1 {round(prob_res['number_of_trades'].std())}")
 
 
 
