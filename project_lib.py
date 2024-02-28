@@ -529,3 +529,125 @@ def mc_opt_n_trades(df,
 
     prob_res = pd.DataFrame(prob_res, index=['number_of_trades']).T.reset_index().rename({'index':'ptf_volat'}, axis=1)
     print(f"optimal number of trades: {round(prob_res['number_of_trades'].mean())} \u00B1 {round(prob_res['number_of_trades'].std())}")
+
+
+
+def forecast_portfolio_volatility(df,
+                                    incipit_date,
+                                    sigma_sl,
+                                    sigma_tp,
+                                    max_trade_duration, 
+                                    number_of_trades,
+                                    aum, 
+                                    aum_lost_sl):
+    """
+    function does....
+    """
+
+    if (incipit_date <= '2014-02-12') | (incipit_date >= '2023-02-12'):
+        raise ValueError('incipit_date must be between 2014-02-12 and 2023-02-12')
+
+    # refill Sat&Sun
+    refilled = df.reindex(pd.date_range(df.index.min(), df.index.max()), method='ffill')
+
+    # create list of dates for simulated trades
+    date_index_reference = df.loc[pd.to_datetime(incipit_date):pd.to_datetime(incipit_date)+pd.DateOffset(years=1)].index
+    startdates = list(date_index_reference.astype(str))
+
+    # create df to store results of the trades
+    trades_df = pd.DataFrame()
+    ctrvl_aum = pd.DataFrame(index = date_index_reference)
+    ctrvl_aum['aum'] = aum
+    ctrvl_pos = pd.DataFrame(index = date_index_reference)
+
+    # generate random trades until portfolio volatility is below target
+    for _ in range(number_of_trades):
+        security_id = random.choice(list(df.columns))
+        trade_entry_date = random.choice(startdates)
+        direction = random.choice([-1, 1])
+
+        # compute 5Y Monthly standard deviation starting from date of trade entry and going backward to compute trade's TP/SL
+        hist_stdev = refilled.loc[
+            refilled.index.isin(pd.date_range(end=trade_entry_date, periods=60+1, freq=pd.DateOffset(months=1))), security_id
+                ].pct_change().dropna().std()
+        
+        # create trade's PnL df
+        trade_pnl = df.loc[trade_entry_date:, [security_id]].head(max_trade_duration+1)
+        trade_pnl['security_id'] = security_id
+        trade_pnl['direction'] = direction
+        trade_pnl['hist_volatility'] = hist_stdev
+        trade_pnl['entry_price'] = df.loc[trade_entry_date, security_id]
+        trade_pnl['tp_price'] = trade_pnl['entry_price'] * (1 + hist_stdev * sigma_tp * direction)
+        trade_pnl['sl_price'] = trade_pnl['entry_price'] * (1 + hist_stdev * sigma_sl * direction)
+        trade_pnl['quantity'] = (aum * aum_lost_sl) / ((trade_pnl['entry_price'] - trade_pnl['sl_price']) * direction)
+
+        # check if TP/SL have been hitted 
+        if direction == 1:
+            trade_pnl['tp_hit'] = (trade_pnl[security_id] > trade_pnl['tp_price']) * 1
+            trade_pnl['sl_hit'] = (trade_pnl[security_id] < trade_pnl['sl_price']) * 1
+        elif direction == -1:
+            trade_pnl['tp_hit'] = (trade_pnl[security_id] < trade_pnl['tp_price']) * 1
+            trade_pnl['sl_hit'] = (trade_pnl[security_id] > trade_pnl['sl_price']) * 1
+
+        trade_pnl['tp_sl_hit'] = trade_pnl['tp_hit'] + trade_pnl['sl_hit']
+
+        # make exit condition from the trade explicit
+        if trade_pnl['tp_sl_hit'].sum()==0:
+            trade_pnl['exit_condition'] = 'max_duration'
+            trade_pnl['exit_price'] = trade_pnl[security_id].iloc[-1]
+        else:
+            trade_pnl = trade_pnl.loc[:trade_pnl[trade_pnl['tp_sl_hit'] == 1].index[0]].copy()
+            trade_pnl['exit_condition'] = 'stop_loss' if trade_pnl['sl_hit'].sum()==1 else 'take_profit'
+            trade_pnl['exit_price'] = trade_pnl['sl_price'] if trade_pnl['sl_hit'].sum()==1 else trade_pnl['tp_price']
+
+        # first day must be subtracted as it is the day when the trade is open
+        trade_pnl['duration'] = len(trade_pnl)-1
+
+        # store the trade
+        trades_df = pd.concat([trades_df, trade_pnl[['security_id', 'direction', 'hist_volatility', 'entry_price',
+            'tp_price', 'sl_price', 'quantity', 'exit_condition', 'exit_price', 'duration']].drop_duplicates()]).sort_index()
+        
+        # store controvalore
+        ctrvl_aum = pd.concat([ctrvl_aum, 
+                        (trade_pnl['entry_price'] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
+        
+        ctrvl_pos = pd.concat([ctrvl_pos, 
+                        (trade_pnl[security_id] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
+        
+        ctrvl_aum = ctrvl_aum.ffill().fillna(0)
+        aum_net = ctrvl_aum['aum'] - ctrvl_aum.iloc[:, 1:].sum(axis=1)
+
+        portfolio_volatility = (ctrvl_pos.ffill().fillna(0).sum(axis=1) + aum_net).pct_change().std() * np.sqrt(252)
+    
+    return portfolio_volatility
+
+
+
+def mc_fcast_ptf_volatility(df,
+                                incipit_date,
+                                sigma_sl,
+                                sigma_tp,
+                                max_trade_duration, 
+                                number_of_trades,
+                                aum, 
+                                aum_lost_sl,
+                                iterations=100):
+    """
+    
+    """
+    
+
+    simul_ptf_vol = []
+    for _ in tqdm.tqdm(range(iterations)):
+        temp_vol = forecast_portfolio_volatility(df,
+                                incipit_date,
+                                sigma_sl,
+                                sigma_tp,
+                                max_trade_duration, 
+                                number_of_trades,
+                                aum, 
+                                aum_lost_sl)
+        
+        simul_ptf_vol.append(temp_vol)
+    
+    print(f"Estimated Portfolio Volatility: {round(np.mean(simul_ptf_vol), 3)} \u00B1 {round(np.std(simul_ptf_vol), 3)}")
