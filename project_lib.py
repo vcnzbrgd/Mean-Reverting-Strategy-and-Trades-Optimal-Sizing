@@ -309,7 +309,10 @@ def run_bt_pipeline(df,
     trades_list['exit_condition'] = trades_list['exit_condition'].mask(
         (trades_list['exit_condition']=='TP/SL exit')&(trades_list['return']<0), 'SL exit')
     
+    # add year of the trade
+    trades_list['year'] = trades_list['dt_open'].apply(lambda x: x[:4])
 
+    
     return trades_list, trades_pnl
 
 
