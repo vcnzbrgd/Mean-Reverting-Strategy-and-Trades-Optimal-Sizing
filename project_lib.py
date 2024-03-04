@@ -220,7 +220,7 @@ def run_bt_pipeline(df,
                 # compute the optimal sizing such that all trades loses the same amount of $ if SL is hitted
                 quantity = MAX_DOLLAR_LOSS/((price_open - price_sl)*direction)
             else:
-                quantity = MAX_DOLLAR_LOSS/((price_open - price_sl)*direction) * (GAMMA/hist_vol.loc[dt_open])
+                quantity = (MAX_DOLLAR_LOSS * (GAMMA/hist_vol.loc[dt_open]))/((price_open - price_sl)*direction)
 
             # store all trade info in df
             trade = pd.DataFrame({'security_id':security_id,
