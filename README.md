@@ -8,3 +8,5 @@ The file Instruction.pdf contains the two problems, that can be briefly summariz
    -  Magnitude of sigma stop;
    -  Percentage of assets under management (%AUM) lost per trade;
    -  Annual volatility.
+
+The provided dataset is the file: dataset_tmc.csv
