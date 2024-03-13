@@ -322,14 +322,23 @@ def portfolio_nav(trades_pnl, aum = 100000):
     ctrvl_pos = []
 
     for tr in trades_pnl.keys():
-        ctrvl_aum.append((trades_pnl[tr]['price_open'] * trades_pnl[tr]['quantity']).rename(tr).to_frame())
-        ctrvl_pos.append((trades_pnl[tr]['pnl']).rename(tr).to_frame())
+        direction = trades_pnl[tr]['direction'].unique()[0]
+        ctrvl_aum.append((trades_pnl[tr]['price_open'] * trades_pnl[tr]['quantity'] * direction).rename(tr).to_frame())
+        
+        if direction == 1:
+            ctrvl_pos.append((trades_pnl[tr]['pnl']).rename(tr).to_frame())
+        elif direction == -1:
+            # adj. pnl for short, reverse pnl
+            trades_pnl[tr].iloc[:,0] = (trades_pnl[tr].iloc[:,0] - trades_pnl[tr].iloc[0,0]) * (-2) + trades_pnl[tr].iloc[:,0]
+            trades_pnl[tr]['pnl'] = trades_pnl[tr].iloc[:,0] * trades_pnl[tr]['quantity'] * direction
+
+            ctrvl_pos.append((trades_pnl[tr]['pnl']).rename(tr).to_frame())
 
     ctrvl_aum = pd.concat(ctrvl_aum, axis=1).sort_index().ffill().fillna(0)
     ctrvl_pos = pd.concat(ctrvl_pos, axis=1).sort_index().ffill().fillna(0)
 
     nav = (aum - ctrvl_aum.sum(axis=1) + ctrvl_pos.sum(axis=1))
-
+    
     return nav
 
 
