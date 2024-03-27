@@ -88,10 +88,10 @@ def optimal_number_trades(df,
 
     # create df to store results of the trades
     trades_df = pd.DataFrame()
+    trades_pnl = {}
 
     # initialization of portfolio volatility
     portfolio_volatility = 0
-    trades_pnl = {}
 
     # generate random trades until portfolio volatility is below target
     while portfolio_volatility < ptf_vol_tgt:
@@ -499,21 +499,6 @@ def mc_perc_aum_lost(df,
 
 
 
-
-
-
-
-
-
-#################################################################
-
-
-
-
-
-
-
-
 def sigma_stoploss(df,
                     incipit_date,
                     sigma_tp,
@@ -564,9 +549,7 @@ def sigma_stoploss(df,
 
         # create df to store results of the trades
         trades_df = pd.DataFrame()
-        ctrvl_aum = pd.DataFrame(index = date_index_reference)
-        ctrvl_aum['aum'] = aum
-        ctrvl_pos = pd.DataFrame(index = date_index_reference)
+        trades_pnl = {}
 
         if portfolio_volatility - ptf_vol_tgt > 0:
             sigma_sl -= 0.1
@@ -618,19 +601,14 @@ def sigma_stoploss(df,
             # store the trade
             trades_df = pd.concat([trades_df, trade_pnl[['security_id', 'direction', 'hist_volatility', 'entry_price',
                 'tp_price', 'sl_price', 'quantity', 'exit_condition', 'exit_price', 'duration']].drop_duplicates()]).sort_index()
-            
-            # store controvalore
-            ctrvl_aum = pd.concat([ctrvl_aum, 
-                            (trade_pnl['entry_price'] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-            
-            ctrvl_pos = pd.concat([ctrvl_pos, 
-                            (trade_pnl[security_id] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-            
-            ctrvl_aum = ctrvl_aum.ffill().fillna(0)
-            aum_net = ctrvl_aum['aum'] - ctrvl_aum.iloc[:, 1:].sum(axis=1)
+        
+            # compute portfolio NAV
+            trades_pnl[f'{trade_entry_date}#{security_id}'] = trade_pnl
 
-        portfolio_volatility = (ctrvl_pos.ffill().fillna(0).sum(axis=1) + aum_net).pct_change().std() * np.sqrt(252)
-    
+        ptf_nav = portfolio_nav(trades_pnl, aum)
+        ptf_nav = ptf_nav.reindex(pd.date_range(incipit_date, pd.to_datetime(incipit_date)+pd.DateOffset(years=1), freq='B')).ffill().fillna(aum)
+        portfolio_volatility = ptf_nav.pct_change().std() * np.sqrt(252)
+
     return sigma_sl, portfolio_volatility
 
 
