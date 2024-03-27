@@ -345,23 +345,6 @@ def mc_fcast_ptf_volatility(df,
 
 
 
-
-
-
-
-
-
-##########################################################################
-
-
-
-
-
-
-
-
-
-
 def percentage_aum_lost(df,
                             incipit_date,
                             sigma_sl,
@@ -411,9 +394,7 @@ def percentage_aum_lost(df,
 
         # create df to store results of the trades
         trades_df = pd.DataFrame()
-        ctrvl_aum = pd.DataFrame(index = date_index_reference)
-        ctrvl_aum['aum'] = aum
-        ctrvl_pos = pd.DataFrame(index = date_index_reference)
+        trades_pnl = {}
 
         aum_lost_sl += 0.001
 
@@ -463,18 +444,13 @@ def percentage_aum_lost(df,
             trades_df = pd.concat([trades_df, trade_pnl[['security_id', 'direction', 'hist_volatility', 'entry_price',
                 'tp_price', 'sl_price', 'quantity', 'exit_condition', 'exit_price', 'duration']].drop_duplicates()]).sort_index()
             
-            # store controvalore
-            ctrvl_aum = pd.concat([ctrvl_aum, 
-                            (trade_pnl['entry_price'] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-            
-            ctrvl_pos = pd.concat([ctrvl_pos, 
-                            (trade_pnl[security_id] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-            
-            ctrvl_aum = ctrvl_aum.ffill().fillna(0)
-            aum_net = ctrvl_aum['aum'] - ctrvl_aum.iloc[:, 1:].sum(axis=1)
+            # store trades
+            trades_pnl[f'{trade_entry_date}#{security_id}'] = trade_pnl
 
-        portfolio_volatility = (ctrvl_pos.ffill().fillna(0).sum(axis=1) + aum_net).pct_change().std() * np.sqrt(252)
-
+        # compute portfolio NAV
+        ptf_nav = portfolio_nav(trades_pnl, aum)
+        ptf_nav = ptf_nav.reindex(pd.date_range(incipit_date, pd.to_datetime(incipit_date)+pd.DateOffset(years=1), freq='B')).ffill().fillna(aum)
+        portfolio_volatility = ptf_nav.pct_change().std() * np.sqrt(252)
     
     return aum_lost_sl
 
@@ -520,6 +496,21 @@ def mc_perc_aum_lost(df,
         simul_perc_aum_lost.append(temp_percaum)
     
     print(f"Estimated %AUM lost per trade: {round(np.mean(simul_perc_aum_lost), 4)*100}% \u00B1 {round(np.std(simul_perc_aum_lost), 4)*100}%")
+
+
+
+
+
+
+
+
+
+#################################################################
+
+
+
+
+
 
 
 
