@@ -4,7 +4,9 @@ import tqdm
 import random
 
 
+
 # as convention 1 week is 5 trading days and 1 month is 21 trading days so that each year has 252 trading days
+
 
 def portfolio_nav(trades_pnl, aum = 100000):
     """
