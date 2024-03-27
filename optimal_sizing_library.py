@@ -199,40 +199,6 @@ def mc_opt_n_trades(df,
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-##########################################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def forecast_portfolio_volatility(df,
                                     incipit_date,
                                     sigma_sl,
@@ -256,11 +222,11 @@ def forecast_portfolio_volatility(df,
     - portfolio_volatility (float): volatility of the portfolio from random trades
     """
 
-    if (sigma_sl >= 0) | (sigma_tp <= 0):
-        raise ValueError('sigma_sl must be negative and sigma_tp positive')
-    
     # set a generic value of AUM for the portfolio
     aum = 1000000
+
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     if (incipit_date <= '2014-02-12') | (incipit_date >= '2023-02-12'):
         raise ValueError('incipit_date must be between 2014-02-12 and 2023-02-12')
@@ -274,9 +240,7 @@ def forecast_portfolio_volatility(df,
 
     # create df to store results of the trades
     trades_df = pd.DataFrame()
-    ctrvl_aum = pd.DataFrame(index = date_index_reference)
-    ctrvl_aum['aum'] = aum
-    ctrvl_pos = pd.DataFrame(index = date_index_reference)
+    trades_pnl = {}
 
     # generate random trades until portfolio volatility is below target
     for _ in range(number_of_trades):
@@ -325,17 +289,14 @@ def forecast_portfolio_volatility(df,
         trades_df = pd.concat([trades_df, trade_pnl[['security_id', 'direction', 'hist_volatility', 'entry_price',
             'tp_price', 'sl_price', 'quantity', 'exit_condition', 'exit_price', 'duration']].drop_duplicates()]).sort_index()
         
-        # store controvalore
-        ctrvl_aum = pd.concat([ctrvl_aum, 
-                        (trade_pnl['entry_price'] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-        
-        ctrvl_pos = pd.concat([ctrvl_pos, 
-                        (trade_pnl[security_id] * trade_pnl['quantity']).rename(f'{security_id}#{trade_entry_date}')], axis=1)
-        
-        ctrvl_aum = ctrvl_aum.ffill().fillna(0)
-        aum_net = ctrvl_aum['aum'] - ctrvl_aum.iloc[:, 1:].sum(axis=1)
+        # compute portfolio NAV
+        trades_pnl[f'{trade_entry_date}#{security_id}'] = trade_pnl
 
-        portfolio_volatility = (ctrvl_pos.ffill().fillna(0).sum(axis=1) + aum_net).pct_change().std() * np.sqrt(252)
+        ptf_nav = portfolio_nav(trades_pnl, aum)
+
+        ptf_nav = ptf_nav.reindex(pd.date_range(incipit_date, pd.to_datetime(incipit_date)+pd.DateOffset(years=1), freq='B')).ffill().fillna(aum)
+
+        portfolio_volatility = ptf_nav.pct_change().std() * np.sqrt(252)
     
     return portfolio_volatility
 
@@ -384,6 +345,23 @@ def mc_fcast_ptf_volatility(df,
 
 
 
+
+
+
+
+
+
+##########################################################################
+
+
+
+
+
+
+
+
+
+
 def percentage_aum_lost(df,
                             incipit_date,
                             sigma_sl,
@@ -408,11 +386,11 @@ def percentage_aum_lost(df,
     - aum_lost_sl (float): share of AuM lost from each trade
     """
 
-    if (sigma_sl >= 0) | (sigma_tp <= 0):
-        raise ValueError('sigma_sl must be negative and sigma_tp positive')
-    
     # set a generic value of AUM for the portfolio
     aum = 1000000
+
+    if (sigma_sl >= 0) | (sigma_tp <= 0):
+        raise ValueError('sigma_sl must be negative and sigma_tp positive')
 
     if (incipit_date <= '2014-02-12') | (incipit_date >= '2023-02-12'):
         raise ValueError('incipit_date must be between 2014-02-12 and 2023-02-12')
